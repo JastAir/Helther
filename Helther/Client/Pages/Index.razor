@@ -1,0 +1,147 @@
+﻿@page "/"
+@using Helther.Shared.Entity
+@using Microsoft.AspNetCore.Components
+@using Helther.Client.Models
+
+@inject HttpClient _httpClient
+
+<PageTitle>Helther - Service health checker</PageTitle>
+
+<br/>
+<div class="row align-items-center">
+    <div class="col">
+        <h1>Services</h1>
+    </div>
+    <div class="col">
+        <button type="button" class="btn btn-outline-success float-end" @onclick="() => ChangeAddNewServiceModalVisibility(true)">Add new</button>
+    </div>
+</div>
+
+@if (_services != null || _services?.Count > 0)
+{
+    <table class="table table-striped table-hover">
+        <thead>
+        <tr>
+            <th width="10%">#</th>
+            <th width="30%">Name</th>
+            <th width="20%">Url</th>
+            <th width="10%">State</th>
+            <th width="20%">Rate (sec)</th>
+            <th width="10%">Last check</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in _services)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Name</td>
+                <td>@item.Url</td>
+                <td>@item.Status</td>
+                <td>Every @item.RateInSec (sec)</td>
+                <td>@item.LastUpdateDateTime</td>
+                <td>
+                    <div class="float-end">
+                        @*<button type="button" class="btn btn-outline-primary" @onclick="() => Refresh(item.Id)">Refresh</button>*@
+                        <button type="button" class="btn btn-danger" @onclick="() => Remove(item.Id)">Remove</button>
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody >
+    </table>
+}
+else
+{
+    <p>You don't have services.</p>
+}
+
+@if (_showAddNewServiceModal)
+{
+    <div tabindex="-1" class="fixed-top align-middle">
+        <EditForm Model="_creatingService">
+            <div class="modal-dialog shadow-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add new service</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="() => ChangeAddNewServiceModalVisibility(false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="nameAddFormInput" class="form-label">Name</label>
+                            <InputText type="text" class="form-control" id="nameAddFormInput" placeholder="Name" @bind-Value="_creatingService.Name"/>
+
+                        </div>
+                        <div class="mb-3">
+                            <label for="urlAddFormInput" class="form-label">Url</label>
+                            <InputText type="text" class="form-control" id="urlAddFormInput" placeholder="https://localhost:8080" @bind-Value="_creatingService.Url"/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="rateAddFormInput" class="form-label">Rate</label>
+                            <div class="input-group">
+                                <InputNumber type="number" class="form-control" id="rateAddFormInput" placeholder="60" @bind-Value="_creatingService.Rate" />
+                                <span class="input-group-text">.sec</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="() => ChangeAddNewServiceModalVisibility(false)">Close</button>
+                        <button type="submit" class="btn btn-primary" @onclick="AddNewService">Add</button>
+                    </div>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@code{
+    // Fetched data
+    private List<Service>? _services;
+
+    // Form controls
+    private bool _showAddNewServiceModal = false;
+
+    // Request models
+    private CreatingServiceModel _creatingService = new();
+    private Task _updatedDataTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _updatedDataTimer = new Task(async () =>
+        {
+            while (true)
+            {
+                await FetchAllServices();
+                await Task.Delay(5000);
+            }
+        });
+        _updatedDataTimer.Start();
+    }
+
+    private async Task FetchAllServices()
+    {
+        _services = await _httpClient.GetFromJsonAsync<List<Service>>("Services");
+        StateHasChanged();
+    }
+
+    private void ChangeAddNewServiceModalVisibility(bool show)
+    {
+        _showAddNewServiceModal = show;
+    }
+
+    private async Task AddNewService()
+    {
+        var response = await _httpClient.PostAsJsonAsync("Services/Create", _creatingService);
+        _creatingService = new CreatingServiceModel();
+        ChangeAddNewServiceModalVisibility(false);
+        await FetchAllServices();
+    }
+
+    private async Task Remove(int id)
+    {
+        await _httpClient.DeleteAsync($"Services/Remove/{id}");
+        await FetchAllServices();
+    }
+}
