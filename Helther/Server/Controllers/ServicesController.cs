@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Helther.Client.Models;
+using Helther.Server.Services;
 using Helther.Shared.Entity;
 using Microsoft.AspNetCore.Mvc;
 using AppContext = Helther.Shared.Db.AppContext;
@@ -11,10 +12,12 @@ namespace Helther.Server.Controllers;
 public class ServicesController : ControllerBase
 {
     private readonly AppContext _appContext;
+    private readonly IPingService _pingService;
 
-    public ServicesController(AppContext appContext)
+    public ServicesController(AppContext appContext, IPingService pingService)
     {
         _appContext = appContext;
+        _pingService = pingService;
     }
 
     [HttpGet]
@@ -32,11 +35,16 @@ public class ServicesController : ControllerBase
         }
     }
 
-    [HttpGet("RefreshStatus")]
-    public IActionResult RefreshStatus(int id)
+    [HttpGet("RefreshStatus/{id}")]
+    public async Task<IActionResult> RefreshStatus(int id)
     {
-        // Todo: Need implement refreshing status service
-        return Ok(new List<Service>());
+        var result = await _pingService.Ping(id);
+        if (result)
+        {
+            return Ok(new List<Service>());
+        }
+
+        return BadRequest();
     }
 
     [HttpPost("Create")]

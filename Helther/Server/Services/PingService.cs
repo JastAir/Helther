@@ -1,101 +1,67 @@
-﻿using System.Diagnostics;
+﻿using Helther.Shared.Db;
 using Helther.Shared.Entity;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using AppContext = Helther.Shared.Db.AppContext;
 
 namespace Helther.Server.Services;
 
-public class PingService : IHostedService, IDisposable
+public class PingService : IPingService
 {
-    // DI
-    private IServiceScopeFactory  _scopeFactory;
+    private readonly AppContext _appContext;
 
-    // Private
-    private IDictionary<Service, Timer> _timers = new Dictionary<Service, Timer>();
-
-    public PingService(IServiceScopeFactory scopeFactory)
+    public PingService(AppContext appContext)
     {
-        _scopeFactory = scopeFactory;
+        _appContext = appContext;
     }
-
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task<bool> Ping(int serviceId)
     {
-        new Task(() => CheckNewServices(cancellationToken)).Start();
-        return Task.CompletedTask;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        foreach (var (_, timer) in _timers)
-        {
-            timer.Change(Timeout.Infinite, 0);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
-        foreach (var (_, timer) in _timers)
-        {
-            timer.Dispose();
-        }
-    }
-
-    private async Task RefreshService(Service service)
-    {
-        using var scope = _scopeFactory.CreateScope();
-        var appContext = scope.ServiceProvider.GetRequiredService<AppContext>();
-
-        var findedService = appContext.Services.FirstOrDefault(s => s.Id == service.Id);
-        if (findedService == null)
-        {
-            await _timers[service].DisposeAsync();
-            _timers.Remove(service);
-            Debug.WriteLine($"Service: {service.Id} was removed from service list");
-        }
-        else
+        var findedService = _appContext.Services.FirstOrDefault(s => s.Id == serviceId);
+        if (findedService != null)
         {
             using HttpClient httpClient = new HttpClient();
             HttpRequestMessage request = new HttpRequestMessage
             {
-                RequestUri = new Uri(service.Url),
+                RequestUri = new Uri(findedService.Url),
                 Method = HttpMethod.Head
             };
-            var resp = await httpClient.SendAsync(request);
 
-            findedService.Status = (int) resp.StatusCode;
-            findedService.LastUpdateDateTime = DateTime.Now;
-            //findedService.History.Add(new Check
-            //{
-            //    Status = (int) resp.StatusCode,
-            //    Service = service,
-            //    CheckDateTime = DateTime.Now
-            //});
-
-            appContext.Services.Update(findedService);
-            await appContext.SaveChangesAsync();
-            
-            Debug.WriteLine($"Service: {service.Id} was update");
-        }
-    }
-
-    private async Task CheckNewServices(CancellationToken token)
-    {
-        using var scope = _scopeFactory.CreateScope();
-        var appContext = scope.ServiceProvider.GetRequiredService<AppContext>();
-
-        while (!token.IsCancellationRequested)
-        {
-            appContext.Services.ToList().ForEach(service =>
+            try
             {
-                if (!_timers.ContainsKey(service))
+                var resp = await httpClient.SendAsync(request);
+
+                findedService.Status = (int)resp.StatusCode;
+                findedService.LastUpdateDateTime = DateTime.Now;
+
+                _appContext.Services.Update(findedService);
+                await _appContext.SaveChangesAsync();
+
+                Debug.WriteLine($"Service: {findedService.Id} was update");
+                return true;
+            }
+            catch (HttpRequestException e)
+            {
+                if (e.StatusCode == null)
                 {
-                    Timer timer = new Timer(state =>
-                        RefreshService(service), null, TimeSpan.Zero, TimeSpan.FromSeconds(service.RateInSec));
-                    _timers.Add(service, timer);
+                    findedService.Status = 404;
                 }
-            });
-            await Task.Delay(5000, token);
+                else
+                {
+                    findedService.Status = (int)e.StatusCode;
+                }
+
+                findedService.LastUpdateDateTime = DateTime.Now;
+
+                _appContext.Services.Update(findedService);
+                await _appContext.SaveChangesAsync();
+                return false;
+            }
         }
+
+        return false;
     }
 }

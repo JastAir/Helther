@@ -23,28 +23,53 @@
         <thead>
         <tr>
             <th width="10%">#</th>
-            <th width="30%">Name</th>
-            <th width="20%">Url</th>
+            <th width="20%">Name</th>
+            <th width="10%">Url</th>
             <th width="10%">State</th>
             <th width="20%">Rate (sec)</th>
-            <th width="10%">Last check</th>
+            <th width="30%">Last check</th>
             <th></th>
         </tr>
         </thead>
         <tbody>
         @foreach (var item in _services)
         {
-            <tr>
+            <tr class="align-middle">
                 <td>@item.Id</td>
                 <td>@item.Name</td>
                 <td>@item.Url</td>
-                <td>@item.Status</td>
-                <td>Every @item.RateInSec (sec)</td>
+                @if (item.Status == 200)
+                {
+                    <td>
+                        <span class="badge rounded-pill bg-success">
+                            @item.Status
+                        </span>
+                    </td>
+                }
+                else
+                {
+                    <td>
+                        <span class="badge rounded-pill bg-danger">
+                            @item.Status
+                        </span>
+                    </td>
+                }
+                <td>@item.RateInSec Sec</td>
                 <td>@item.LastUpdateDateTime</td>
                 <td>
-                    <div class="float-end">
-                        @*<button type="button" class="btn btn-outline-primary" @onclick="() => Refresh(item.Id)">Refresh</button>*@
-                        <button type="button" class="btn btn-danger" @onclick="() => Remove(item.Id)">Remove</button>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Basic example">
+                        <button type="button" class="btn btn-success" @onclick="() => Refresh(item.Id)">
+                            <svg style="width: 24px; height: 24px" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M12,6V9L16,5L12,1V4A8,8 0 0,0 4,12C4,13.57 4.46,15.03 5.24,16.26L6.7,14.8C6.25,13.97 6,13 6,12A6,6 0 0,1 12,6M18.76,7.74L17.3,9.2C17.74,10.04 18,11 18,12A6,6 0 0,1 12,18V15L8,19L12,23V20A8,8 0 0,0 20,12C20,10.43 19.54,8.97 18.76,7.74Z"/>
+                            </svg>
+                        </button>
+
+
+                        <button type="button" class="col btn btn-danger" @onclick="() => Remove(item.Id)">
+                            <svg style="width: 24px; height: 24px" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                            </svg>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -80,7 +105,7 @@ else
                         <div class="mb-3">
                             <label for="rateAddFormInput" class="form-label">Rate</label>
                             <div class="input-group">
-                                <InputNumber type="number" class="form-control" id="rateAddFormInput" placeholder="60" @bind-Value="_creatingService.Rate" />
+                                <InputNumber type="number" class="form-control" id="rateAddFormInput" placeholder="60" @bind-Value="_creatingService.Rate"/>
                                 <span class="input-group-text">.sec</span>
                             </div>
                         </div>
@@ -133,7 +158,7 @@ else
 
     private async Task AddNewService()
     {
-        var response = await _httpClient.PostAsJsonAsync("Services/Create", _creatingService);
+        await _httpClient.PostAsJsonAsync("Services/Create", _creatingService);
         _creatingService = new CreatingServiceModel();
         ChangeAddNewServiceModalVisibility(false);
         await FetchAllServices();
@@ -144,4 +169,11 @@ else
         await _httpClient.DeleteAsync($"Services/Remove/{id}");
         await FetchAllServices();
     }
+
+    private async Task Refresh(int id)
+    {
+        await _httpClient.GetAsync($"Services/RefreshStatus/{id}");
+        await FetchAllServices();
+    }
+
 }

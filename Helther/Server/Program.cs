@@ -12,7 +12,8 @@ builder.Services.AddDbContext<AppContext>(ServiceLifetime.Transient);
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 
-builder.Services.AddHostedService<PingService>();
+builder.Services.AddScoped<IPingService, PingService>();
+builder.Services.AddHostedService<PingHostedService>();
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
