@@ -149,7 +149,7 @@ else
     {
         _services = await _httpClient.GetFromJsonAsync<List<Service>>("Services");
         StateHasChanged();
-    }
+    } 
 
     private void ChangeAddNewServiceModalVisibility(bool show)
     {
